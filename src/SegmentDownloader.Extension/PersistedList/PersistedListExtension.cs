@@ -6,6 +6,7 @@ using System.IO;
 using System.Xml.Serialization;
 using SegmentDownloader.Core.Instrumentation;
 using System.Diagnostics;
+using System.Linq;
 using SegmentDownloader.Common.UI.Extensions;
 
 namespace SegmentDownloader.Extension.PersistedList
@@ -53,22 +54,16 @@ namespace SegmentDownloader.Extension.PersistedList
 
         private const int SaveListIntervalInSeconds = 120;
 
-        private XmlSerializer serializer;
+        private readonly XmlSerializer serializer;
         private Timer timer;
 
-        private object SaveFromDispose = new object();
+        private readonly object SaveFromDispose = new object();
         
         #region IExtension Members
 
-        public string Name
-        {
-            get { return "Persisted Download List"; }
-        }
+        public string Name => "Persisted Download List";
 
-        public IUIExtension UIExtension
-        {
-            get { return null; }
-        }
+        public IUIExtension UIExtension => null;
 
         #endregion
 
@@ -93,38 +88,38 @@ namespace SegmentDownloader.Extension.PersistedList
 
         private void PersistList(object state)
         {
-            List<DownloadItem> downloadsToSave = new List<DownloadItem>();
+            var downloadsToSave = new List<DownloadItem>();
 
             using (DownloadManager.Instance.LockDownloadList(false))
             {
                 IList<Downloader> downloads = DownloadManager.Instance.Downloads;
 
-                for (int i = 0; i < downloads.Count; i++)
+                foreach (var download in downloads)
                 {
-                    if (downloads[i].State == DownloaderState.Ended)
+                    if (download.State == DownloaderState.Ended)
                     {
                         continue;
                     }
                                         
-                    Downloader downloader = downloads[i];
-
-                    DownloadItem di = new DownloadItem();
-                    di.LocalFile = downloader.LocalFile;
-                    di.rl = downloader.ResourceLocation;
-                    di.mirrors = downloader.Mirrors.ToArray();
-                    di.remoteInfo = downloader.RemoteFileInfo;
-                    di.requestedSegments = downloader.RequestedSegments;
-                    di.createdDateTime = downloader.CreatedDateTime;
-                    di.extendedProperties = new SerializableDictionary<string,object>(downloader.ExtendedProperties);
-
-                    using (downloader.LockSegments())
+                    DownloadItem di = new DownloadItem
                     {
-                        di.Segments = new SegmentItem[downloader.Segments.Count];
+                        LocalFile = download.LocalFile,
+                        rl = download.ResourceLocation,
+                        mirrors = download.Mirrors.ToArray(),
+                        remoteInfo = download.RemoteFileInfo,
+                        requestedSegments = download.RequestedSegments,
+                        createdDateTime = download.CreatedDateTime,
+                        extendedProperties = new SerializableDictionary<string, object>(download.ExtendedProperties)
+                    };
 
-                        for (int j = 0; j < downloader.Segments.Count; j++)
+                    using (download.LockSegments())
+                    {
+                        di.Segments = new SegmentItem[download.Segments.Count];
+
+                        for (int j = 0; j < download.Segments.Count; j++)
                         {
                             SegmentItem si = new SegmentItem();
-                            Segment seg = downloader.Segments[j];
+                            Segment seg = download.Segments[j];
 
                             si.Index = seg.Index;
                             si.InitialStartPositon = seg.InitialStartPosition;
@@ -135,7 +130,7 @@ namespace SegmentDownloader.Extension.PersistedList
                         }
                     }
 
-                    downloadsToSave.Add(di);                    
+                    downloadsToSave.Add(di);
                 }
             }
 
@@ -150,21 +145,19 @@ namespace SegmentDownloader.Extension.PersistedList
 
         private void LoadSavedList()
         {
-            if (File.Exists(GetDatabaseFile()))
+            if (!File.Exists(GetDatabaseFile())) return;
+            try
             {
-                try
+                using (FileStream fs = new FileStream(GetDatabaseFile(), FileMode.Open))
                 {
-                    using (FileStream fs = new FileStream(GetDatabaseFile(), FileMode.Open))
-                    {
-                        DownloadItem[] downloads = (DownloadItem[])serializer.Deserialize(fs);
+                    DownloadItem[] downloads = (DownloadItem[])serializer.Deserialize(fs);
 
-                        LoadPersistedObjects(downloads);
-                    }
+                    LoadPersistedObjects(downloads);
                 }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine(ex.ToString());
-                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.ToString());
             }
         }
 
@@ -188,39 +181,33 @@ namespace SegmentDownloader.Extension.PersistedList
 
         private static void LoadPersistedObjects(DownloadItem[] downloads)
         {
-            for (int i = 0; i < downloads.Length; i++)
+            foreach (var download in downloads)
             {
-                List<Segment> segments = new List<Segment>();
-
-                for (int j = 0; j < downloads[i].Segments.Length; j++)
-                {
-                    Segment seg = new Segment();
-                    seg.Index = downloads[i].Segments[j].Index;
-                    seg.InitialStartPosition = downloads[i].Segments[j].InitialStartPositon;
-                    seg.StartPosition = downloads[i].Segments[j].StartPositon;
-                    seg.EndPosition = downloads[i].Segments[j].EndPosition;
-
-                    segments.Add(seg);
-                }
-
-                Downloader d = DownloadManager.Instance.Add(
-                    downloads[i].rl,
-                    downloads[i].mirrors,
-                    downloads[i].LocalFile,
-                    segments,
-                    downloads[i].remoteInfo,
-                    downloads[i].requestedSegments,
-                    false,
-                    downloads[i].createdDateTime);
-
-                if (downloads[i].extendedProperties != null)
-                {
-                    SerializableDictionary<string, object>.Enumerator e = downloads[i].extendedProperties.GetEnumerator();
-
-                    while (e.MoveNext())
+                var segments = download.Segments.Select(segment => new Segment
                     {
-                        d.ExtendedProperties.Add(e.Current.Key, e.Current.Value);
-                    }
+                        Index = segment.Index,
+                        InitialStartPosition = segment.InitialStartPositon,
+                        StartPosition = segment.StartPositon,
+                        EndPosition = segment.EndPosition
+                    })
+                    .ToList();
+
+                var d = DownloadManager.Instance.Add(
+                    download.rl,
+                    download.mirrors,
+                    download.LocalFile,
+                    segments,
+                    download.remoteInfo,
+                    download.requestedSegments,
+                    false,
+                    download.createdDateTime);
+
+                if (download.extendedProperties == null) continue;
+                var e = download.extendedProperties.GetEnumerator();
+
+                while (e.MoveNext())
+                {
+                    d.ExtendedProperties.Add(e.Current.Key, e.Current.Value);
                 }
             }
         } 
