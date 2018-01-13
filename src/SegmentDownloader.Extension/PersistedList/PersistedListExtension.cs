@@ -11,7 +11,7 @@ using SegmentDownloader.Common.UI.Extensions;
 
 namespace SegmentDownloader.Extension.PersistedList
 {
-    public class PersistedListExtension: IExtension, IDisposable
+    public class PersistedListExtension : IExtension, IDisposable
     {
         [Serializable]
         public class DownloadItem
@@ -58,7 +58,7 @@ namespace SegmentDownloader.Extension.PersistedList
         private Timer timer;
 
         private readonly object SaveFromDispose = new object();
-        
+
         #region IExtension Members
 
         public string Name => "Persisted Download List";
@@ -100,7 +100,7 @@ namespace SegmentDownloader.Extension.PersistedList
                     {
                         continue;
                     }
-                                        
+
                     DownloadItem di = new DownloadItem
                     {
                         LocalFile = download.LocalFile,
@@ -184,12 +184,12 @@ namespace SegmentDownloader.Extension.PersistedList
             foreach (var download in downloads)
             {
                 var segments = download.Segments.Select(segment => new Segment
-                    {
-                        Index = segment.Index,
-                        InitialStartPosition = segment.InitialStartPositon,
-                        StartPosition = segment.StartPositon,
-                        EndPosition = segment.EndPosition
-                    })
+                {
+                    Index = segment.Index,
+                    InitialStartPosition = segment.InitialStartPositon,
+                    StartPosition = segment.StartPositon,
+                    EndPosition = segment.EndPosition
+                })
                     .ToList();
 
                 var d = DownloadManager.Instance.Add(
@@ -203,14 +203,15 @@ namespace SegmentDownloader.Extension.PersistedList
                     download.createdDateTime);
 
                 if (download.extendedProperties == null) continue;
-                var e = download.extendedProperties.GetEnumerator();
+                var propertiesEnumerator = download.extendedProperties.GetEnumerator();
 
-                while (e.MoveNext())
+                while (propertiesEnumerator.MoveNext())
                 {
-                    d.ExtendedProperties.Add(e.Current.Key, e.Current.Value);
+                    d.ExtendedProperties.Add(propertiesEnumerator.Current.Key, propertiesEnumerator.Current.Value);
                 }
+                propertiesEnumerator.Dispose();
             }
-        } 
+        }
 
         #endregion
 
