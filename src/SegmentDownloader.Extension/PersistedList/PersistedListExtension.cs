@@ -1,11 +1,8 @@
 using System;
 using System.Threading;
 using System.Collections.Generic;
-using System.Text;
-using SegmentDownloader.Core.Extensions;
 using SegmentDownloader.Core;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Xml.Serialization;
 using SegmentDownloader.Core.Instrumentation;
 using System.Diagnostics;
@@ -57,12 +54,10 @@ namespace SegmentDownloader.Extension.PersistedList
         private const int SaveListIntervalInSeconds = 120;
 
         private XmlSerializer serializer;
-        private System.Threading.Timer timer;
+        private Timer timer;
 
         private object SaveFromDispose = new object();
-        private object SaveFromTimer = new object();
-        private object SaveFromListChange = new object();
-
+        
         #region IExtension Members
 
         public string Name
@@ -240,7 +235,7 @@ namespace SegmentDownloader.Extension.PersistedList
 
             LoadSavedList();
 
-            TimerCallback refreshCallBack = new TimerCallback(PersistList);
+            TimerCallback refreshCallBack = PersistList;
             TimeSpan refreshInterval = TimeSpan.FromSeconds(SaveListIntervalInSeconds);
             timer = new Timer(refreshCallBack, null, new TimeSpan(-1), refreshInterval);
         }
