@@ -1,3 +1,5 @@
+Project was migrated to [SegmentDownload](https://github.com/golavr/SegmentDownload)
+
 # SegmentDownloader
 
 [![Nuget downloads](https://img.shields.io/nuget/v/SegmentDownloader.Core.svg?label=SegmentDownloader.Core&logo=nuget&logoColor=white)](https://www.nuget.org/packages/SegmentDownloader.Core/)
